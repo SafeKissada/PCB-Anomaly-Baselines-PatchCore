@@ -8,6 +8,8 @@ from scripts.run_patchcore import run
 OVERRIDES = dict(
     # ── แก้ตรงนี้ก่อนรันจริง ─────────────────────────────────────────
     DATA_ROOT="dataset root path (contains good/ and defect/ subfolders)",
+    GOOD_DIRNAME  = "good",
+    DEFECT_DIRNAME = "defect",
     # แนะนำ: ชี้ไปที่ splits/split_assignment.csv เดียวกับ repo หลัก
     # (Anomaly-Detection-THESIS) เพื่อให้ train/val/test membership ตรงกัน
     SPLIT_CACHE_PATH="splits/split_assignment.csv",
