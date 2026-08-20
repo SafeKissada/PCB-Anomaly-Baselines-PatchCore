@@ -20,12 +20,22 @@ def compute_metrics(scores: np.ndarray, y_true: np.ndarray, threshold: float) ->
     escape_rate = float(fn / (fn + tp)) if (fn + tp) > 0 else float('nan')
     residual_fcr = float(fp / (fp + tp)) if (fp + tp) > 0 else float('nan')
 
+    # tt/tf/ft/ff = (actual, predicted) convention เดียวกับ repo หลัก
+    # (Anomaly-Detection-THESIS) ที่ใช้ทั้ง cost_aware.py และ output_docs.py
+    # ห้ามสลับกับ scikit-learn convention (tn/fp/fn/tp) ที่ใช้คนละนิยาม
+    #
+    # tt/tf/ft/ff = (actual, predicted) — same convention as the main repo
+    # (Anomaly-Detection-THESIS) used by both cost_aware.py and output_docs.py.
+    # tt=TP, tf=FN(escape), ft=FP(false alarm), ff=TN
+    tt, tf, ft, ff = int(tp), int(fn), int(fp), int(tn)
+
     return dict(
         auc=auc, ap=ap,
         acc      = float(accuracy_score(gt, pred)),
         precision= float(precision_score(gt, pred, zero_division=0)),
         recall   = float(recall_score(gt, pred, zero_division=0)),
         f1       = float(f1_score(gt, pred, zero_division=0)),
+        tt=tt, tf=tf, ft=ft, ff=ff,
         cm       = cm,
         auto_clear_rate = auto_clear_rate,
         escape_rate     = escape_rate,
