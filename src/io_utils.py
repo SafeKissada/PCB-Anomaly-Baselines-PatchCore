@@ -25,14 +25,19 @@ from sklearn.metrics import roc_curve
 # ── SAVE_PATH artifacts (ตัวเลข/log) ─────────────────────────────────────
 
 def save_final_results(cfg, split_name: str, metrics: dict,
-                        threshold: float) -> Path:
+                        threshold: float,
+                        naive_baselines: dict = None) -> Path:
     """เซฟ final_results_{split_name}.json ลง SAVE_PATH — รูปแบบเดียวกับ
-    repo หลัก (config snapshot + metrics) เพื่อให้ script เทียบผลข้าม
-    repo โหลด key เดียวกันได้โดยไม่ต้องแก้ไขอะไรเพิ่ม
+    repo หลัก (config snapshot + metrics + naive_baselines) เพื่อให้ script
+    เทียบผลข้าม repo โหลด key เดียวกันได้โดยไม่ต้องแก้ไขอะไรเพิ่ม
+
+    naive_baselines: dict จาก compute_naive_baseline_metrics() —
+    เก็บ 3 baseline (always_normal, always_anomaly, random_prior) พร้อม
+    seed เพื่อให้ผล random_prior reproduce ได้ข้าม run
 
     final_results_{split_name}.json goes to SAVE_PATH — same format as the
-    main repo (config snapshot + metrics) so cross-repo comparison scripts
-    load the same keys without modification.
+    main repo (config snapshot + metrics + naive_baselines) so cross-repo
+    comparison scripts load the same keys without modification.
     """
     out = {
         "experiment"           : cfg.EXPERIMENT,
@@ -51,6 +56,8 @@ def save_final_results(cfg, split_name: str, metrics: dict,
                      if k not in ("cm", "fpr", "tpr", "gt", "pred", "scores")},
         "confusion_matrix" : metrics["cm"].tolist(),
     }
+    if naive_baselines is not None:
+        out["naive_baselines"] = naive_baselines
     out_path = Path(cfg.SAVE_PATH) / f"final_results_{split_name}.json"
     out_path.write_text(
         json.dumps(out, indent=2, ensure_ascii=False), encoding="utf-8")

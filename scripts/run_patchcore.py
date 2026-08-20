@@ -1,6 +1,7 @@
 """
 รัน PatchCore แบบ end-to-end บน dataset เดียวกับ repo หลัก
-(Anomaly-Detection-THESIS) 
+(Anomaly-Detection-THESIS) — metric ที่ได้เทียบกับ EXPERIMENT 0 (ConvNeXt+AE)
+ได้โดยตรงเพราะใช้ split/evaluate เดียวกัน
 
 output แบ่งเป็น 2 โฟลเดอร์:
   SAVE_PATH   — ตัวเลข/log: scores_{split}.npz, final_results_{split}.json,
@@ -19,7 +20,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from config.config import Config, set_seed
 from src.data.dataset import build_datasets_and_loaders
-from src.evaluate import compute_metrics, select_percentile_threshold
+from src.evaluate import (compute_metrics, select_percentile_threshold,
+                           compute_naive_baseline_metrics)
 from src.io_utils import (save_final_results, save_scores,
                            save_roc_csv, write_save_path_readme)
 from src.models.patchcore import PatchCore
@@ -68,6 +70,20 @@ def run(cfg: Config):
         f"Threshold (percentile={cfg.THRESHOLD_PERCENTILE}): {threshold:.6f}"
     )
 
+    # คำนวณ naive baseline บน val และ test แยกกัน — ใช้ cfg.SEED เดียวกัน
+    # กับ pipeline ทั้งหมด เพื่อให้ random_prior reproduce ได้ข้าม run
+    # (compute_naive_baseline_metrics() ใช้ RandomState(seed) แยกต่างหาก
+    # ไม่แตะ global RNG ที่ set_seed() ตั้งไว้)
+    #
+    # Compute naive baselines for val and test separately — using the same
+    # cfg.SEED as the rest of the pipeline so random_prior reproduces across
+    # runs. (compute_naive_baseline_metrics() uses its own RandomState(seed),
+    # never touching the global RNG set_seed() configured.)
+    naive = {
+        'val':  compute_naive_baseline_metrics(val_result.y_true,  cfg.SEED),
+        'test': compute_naive_baseline_metrics(test_result.y_true, cfg.SEED),
+    }
+
     for split_name, result in [("val", val_result), ("test", test_result)]:
         metrics = compute_metrics(
             result.image_scores, result.y_true, threshold)
@@ -86,7 +102,8 @@ def run(cfg: Config):
             result.labels, result.paths,
             result.pixel_maps, result.orig_imgs, result.preproc_imgs,
         )
-        save_final_results(cfg, split_name, metrics, threshold)
+        save_final_results(cfg, split_name, metrics, threshold,
+                           naive_baselines=naive[split_name])
         save_roc_csv(cfg, split_name,
                      result.image_scores, result.y_true)
 
