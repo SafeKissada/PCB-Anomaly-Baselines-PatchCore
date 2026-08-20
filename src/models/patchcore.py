@@ -125,7 +125,8 @@ def _embed_batch(extractor: _FeatureExtractor, images: torch.Tensor,
 
 
 def _greedy_coreset_subsample(features: torch.Tensor, target_size: int,
-                               projection_dim: int, device) -> torch.Tensor:
+                               projection_dim: int, device,
+                               seed: int) -> torch.Tensor:
     """Greedy k-center (minimax facility location) coreset subsampling —
     PatchCore paper Algorithm 1. เลือก subset ที่ "ครอบคลุม" feature space
     เดิมได้ดีที่สุดในแง่ maximum-distance-to-nearest-selected-point แทนที่จะ
@@ -133,12 +134,49 @@ def _greedy_coreset_subsample(features: torch.Tensor, target_size: int,
 
     ทำ random projection ลงมิติต่ำก่อน (Johnson-Lindenstrauss) เพื่อให้การหา
     farthest point แต่ละรอบเร็วขึ้น โดยไม่กระทบ relative distance มากนัก
+
+    `seed` ควบคุม 2 แหล่ง randomness ในฟังก์ชันนี้พร้อมกัน:
+    (1) ทิศทางของ random projection matrix R — ผลกระทบต่อว่า "ระยะห่างสัมพัทธ์"
+        ระหว่าง patch ในพื้นที่มิติต่ำมีหน้าตาเป็นอย่างไร ส่งผลว่า greedy
+        traversal จะผ่าน feature space ในลำดับใด
+    (2) จุดเริ่มต้นของ greedy traversal (initial seed point) — เป็น random tie-
+        breaking โดยปริยาย เนื่องจาก k-center problem ไม่มี unique solution
+        จุดเริ่มต้นต่างกันอาจให้ coreset ที่ต่างกันแม้ feature เดิมทั้งหมด
+
+    การ fix seed เดียวกันทุก run ทำให้ผลลัพธ์ coreset ซ้ำได้เป๊ะ (deterministic
+    ต่อ seed นั้น) — สำคัญสำหรับ multi-seed evaluation ที่ต้องการให้ variance
+    ที่วัดได้สะท้อน split/training randomness ไม่ใช่ randomness จากการ
+    subsample memory bank ที่ควรคุมได้
+
+    `seed` controls 2 randomness sources in this function simultaneously:
+    (1) The direction of the random projection matrix R — affects how relative
+        distances between patches appear in the low-dimensional space, which in
+        turn influences the order greedy traversal passes through feature space.
+    (2) The initial point of the greedy traversal (initial seed point) — an
+        implicit random tie-break, since the k-center problem has no unique
+        solution: different starting points can produce different coresets even
+        from the exact same full feature set.
+
+    Fixing the same seed every run makes the coreset result exactly
+    reproducible (deterministic for that seed) — essential for multi-seed
+    evaluation, where the measured variance should reflect split/training
+    randomness, not randomness from memory-bank subsampling that should be
+    under control.
     """
     n = features.shape[0]
     if target_size >= n:
         return features
 
-    torch.manual_seed(0)
+    # seed ก่อน torch.randn และ torch.randint เสมอ เพื่อให้ทั้งสองขั้นตอน
+    # (random projection + initial point) ถูกควบคุมด้วย seed เดียวกันที่ผู้เรียก
+    # กำหนดมา — ถ้า seed ไว้หลัง if-block หรือระหว่างสองขั้นตอนจะทำให้แยกส่วนได้
+    # ยากขึ้นโดยไม่จำเป็น
+    #
+    # Seed before both torch.randn and torch.randint so that both steps
+    # (random projection + initial point) are governed by the same seed the
+    # caller provides. Seeding after the if-block or between the two steps
+    # would make the randomness harder to reason about without any benefit.
+    torch.manual_seed(seed)
     proj_dim = min(projection_dim, features.shape[1])
     R = torch.randn(features.shape[1], proj_dim, device=device) / np.sqrt(proj_dim)
     projected = features @ R  # [n, proj_dim]
@@ -177,7 +215,7 @@ class PatchCore:
         all_patches = []
         for batch in normal_loader:
             images = batch[0].to(self.device)  # AnomalyDataset[0] = normalized_tensor
-            patches, shape = _embed_batch(
+            patches, shape = _embed_batch(git
                 self.extractor, images, self.cfg.PATCH_POOL_KERNEL)
             self.embed_spatial_shape = shape
             all_patches.append(patches.cpu())
@@ -189,7 +227,23 @@ class PatchCore:
                     f"{target_size:,} ({self.cfg.CORESET_RATIO:.1%})")
 
         self.memory_bank = _greedy_coreset_subsample(
-            all_patches, target_size, self.cfg.CORESET_PROJECTION_DIM, self.device)
+            all_patches, target_size, self.cfg.CORESET_PROJECTION_DIM, self.device,
+            # cfg.SEED คือ seed เดียวกับที่ set_seed() ตั้งไว้ตอนต้น pipeline
+            # ทำให้ผลของ coreset subsampling (random projection direction +
+            # initial traversal point) ผูกกับ run นี้ผ่าน seed เดียวกัน —
+            # จำเป็นสำหรับ multi-seed experiment ที่ seed ต่างกันต้องให้
+            # coreset ต่างกันด้วย ไม่ใช่แค่ split/training randomness เท่านั้น
+            # ที่เปลี่ยน แต่ coreset ไม่เปลี่ยน (ซึ่งจะทำให้ multi-seed
+            # วัด variance ของ PatchCore ได้ไม่ครบ)
+            #
+            # cfg.SEED is the same seed that set_seed() configured at the
+            # start of the pipeline, so the coreset result (random projection
+            # direction + initial traversal point) is tied to this run through
+            # the same seed — needed for multi-seed experiments where different
+            # seeds must produce different coresets too, not just different
+            # splits/training randomness; without this, multi-seed evaluation
+            # would underestimate PatchCore's real variance.
+            seed=self.cfg.SEED)
         logger.info(f"Memory bank พร้อมใช้: {self.memory_bank.shape}")
 
     @torch.no_grad()
