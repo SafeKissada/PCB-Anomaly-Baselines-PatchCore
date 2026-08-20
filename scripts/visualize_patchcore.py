@@ -38,6 +38,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from config.config import Config
 from src.evaluate import compute_metrics
 from src.io_utils import save_scores  # ใช้เฉพาะ path helper
+# src/visual.py อยู่ใน repo นี้โดยตรง (copy จาก repo หลัก ลบแค่
+# plot_training_history ที่ต้องการ history.json ซึ่ง PatchCore ไม่มี)
+# src/visual.py lives directly in this repo (copied from main repo,
+# with plot_training_history stubbed out since PatchCore has no history.json)
 from src.visual import (
     plot_class_distribution, plot_roc_curves, plot_pr_curves,
     plot_confusion_matrices, plot_score_distributions,
