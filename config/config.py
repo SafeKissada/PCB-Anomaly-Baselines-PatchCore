@@ -84,6 +84,16 @@ class Config:
     REWEIGHT_NUM_NEIGHBORS: int = 9
     # ขนาด batch ตอนคำนวณ pairwise distance กับ memory bank (กัน OOM)
     KNN_CHUNK_SIZE: int = 4096
+    # ชื่อ scoring method — ใช้โดย src/visual.py เพื่อแสดง label บน x-axis
+    # ของ score distribution plot เหมือนกับ SCORE_METHOD ใน repo หลัก
+    # "knn" สื่อถูกต้องว่า PatchCore score มาจาก kNN distance ไปยัง memory
+    # bank ไม่ใช่ reconstruction error แบบ AE
+    #
+    # Scoring method name — used by src/visual.py to label the x-axis of the
+    # score distribution plot, matching SCORE_METHOD in the main repo.
+    # "knn" correctly signals that PatchCore scores via kNN distance to the
+    # memory bank, not reconstruction error like the AE.
+    SCORE_METHOD: str = "knn"
 
     _DATA_ROOT_PLACEHOLDER = "dataset root path (contains good/ and defect/ subfolders)"
 
