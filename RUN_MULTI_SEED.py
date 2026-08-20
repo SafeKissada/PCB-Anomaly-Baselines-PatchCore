@@ -31,7 +31,7 @@ import scripts.visualize_patchcore        as visualize_patchcore
 import scripts.run_cost_aware_patchcore   as run_cost_aware_patchcore
 
 # ── seed ที่จะรัน ────────────────────────────────────────────────────
-SEEDS = [42, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+SEEDS = [1, 14, 42, 63, 123, 228, 450, 1357, 2512 , 19999]
 
 # ── key ที่ต้องแยกตาม seed ──────────────────────────────────────────
 # ค่าปริยาย: แยกทั้ง SPLIT_CACHE_PATH, SAVE_PATH, OUTPUT_PATH ต่อ seed

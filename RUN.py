@@ -37,7 +37,7 @@ RUN_COST_AWARE_ANALYSIS = True
 
 OVERRIDES = dict(
     # ── Data & paths — แก้ก่อนรันจริง ──────────────────────────────
-    DATA_ROOT="/content/drive/MyDrive/DATA/group 1",
+    DATA_ROOT="dataset root path (contains good/ and defect/ subfolders",
     GOOD_DIRNAME="good",
     DEFECT_DIRNAME="defect",
 
@@ -50,9 +50,9 @@ OVERRIDES = dict(
     # train/val/test membership matches exactly when comparing AE vs
     # PatchCore. Embed "SEED 42" in the path to get separate splits
     # per seed — RUN_multi_seed.py substitutes it automatically.
-    SPLIT_CACHE_PATH="/content/drive/MyDrive/Result/PatchCore/SEED 42/splits/split_assignment.csv",
-    SAVE_PATH="/content/drive/MyDrive/Result/PatchCore/SEED 42/log",
-    OUTPUT_PATH="/content/drive/MyDrive/Result/PatchCore/SEED 42/image",
+    SPLIT_CACHE_PATH="splits/split_assignment.csv",
+    SAVE_PATH="save log",
+    OUTPUT_PATH="save image/table",
     SEED=42,
 
     # ── Model config — ปรับได้ตามต้องการ ────────────────────────────
