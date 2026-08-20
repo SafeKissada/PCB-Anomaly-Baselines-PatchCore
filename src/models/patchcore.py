@@ -215,7 +215,7 @@ class PatchCore:
         all_patches = []
         for batch in normal_loader:
             images = batch[0].to(self.device)  # AnomalyDataset[0] = normalized_tensor
-            patches, shape = _embed_batch(git
+            patches, shape = _embed_batch(
                 self.extractor, images, self.cfg.PATCH_POOL_KERNEL)
             self.embed_spatial_shape = shape
             all_patches.append(patches.cpu())
@@ -304,7 +304,7 @@ class PatchCore:
             raise RuntimeError("PatchCore.score() ถูกเรียกก่อน fit() — ต้อง "
                                 "build memory bank จากภาพ normal ก่อนเสมอ")
 
-        image_scores, labels, paths = [], [], []
+        image_scores, y_true, labels, paths = [], [], [], []
         pixel_maps = []
         H, W = self.embed_spatial_shape
 
@@ -337,12 +337,26 @@ class PatchCore:
                                          self.cfg.HEATMAP_SIGMA)
                 pixel_maps.append(pmap)
 
-            labels.extend([0 if lb == "normal" else 1 for lb in batch_labels])
+            # แยก y_true (int 0/1) กับ labels (string "good"/"defect") ออกจากกัน
+            # เพื่อให้ตรง schema ของ ScoreResult และ scores_{split}.npz ใน repo
+            # หลัก — y_true ใช้คำนวณ metric, labels ใช้แสดงผล/gallery ต่างหาก
+            # ห้ามสลับหรือรวมเป็น field เดียว เพราะจะทำให้ script ที่โหลด .npz
+            # ทั้งสอง repo มาเทียบกันอ่าน key ผิดแบบเงียบๆ โดยไม่มี error
+            #
+            # Separate y_true (int 0/1) from labels (string "good"/"defect")
+            # to match the ScoreResult and scores_{split}.npz schema in the
+            # main repo — y_true is for metric computation, labels is for
+            # display/gallery. Never merge them into a single field: any script
+            # that loads .npz files from both repos and compares them would
+            # silently read the wrong key with no error.
+            y_true.extend([0 if lb == "normal" else 1 for lb in batch_labels])
+            labels.extend(list(batch_labels))
             paths.extend(batch_paths)
 
         return ScoreResult(
             image_scores=np.array(image_scores, dtype=np.float64),
-            labels=np.array(labels, dtype=np.int64),
+            y_true=np.array(y_true, dtype=np.int64),
+            labels=labels,
             paths=paths,
             pixel_maps=np.stack(pixel_maps, axis=0),
         )
