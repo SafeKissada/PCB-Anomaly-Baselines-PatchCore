@@ -40,11 +40,17 @@ def run(cfg: Config):
     test_result = model.score(data["test_loader"])
 
     threshold = select_percentile_threshold(
-        val_result.image_scores, val_result.labels, cfg)
+        val_result.image_scores, val_result.y_true, cfg)
     logger.info(f"Threshold (percentile={cfg.THRESHOLD_PERCENTILE}): {threshold:.6f}")
 
     for split_name, result in [("val", val_result), ("test", test_result)]:
-        metrics = compute_metrics(result.image_scores, result.labels, threshold)
+        # y_true (int 0/1) ใช้คำนวณ metric — ห้ามสลับกับ result.labels (string)
+        # เพราะ compute_metrics() expect int 0/1 ไม่ใช่ string "good"/"defect"
+        #
+        # y_true (int 0/1) is for metric computation — never swap with
+        # result.labels (string): compute_metrics() expects int 0/1, not
+        # the string "good"/"defect".
+        metrics = compute_metrics(result.image_scores, result.y_true, threshold)
         logger.info(
             f"[{split_name}] AUC={metrics['auc']:.3f} AP={metrics['ap']:.3f} "
             f"Acc={metrics['acc']:.3f} Prec={metrics['precision']:.3f} "
@@ -52,7 +58,9 @@ def run(cfg: Config):
             f"EscapeRate={metrics['escape_rate']:.3f} "
             f"AutoClearRate={metrics['auto_clear_rate']:.3f}")
         save_final_results(cfg, split_name, metrics, threshold)
-        save_scores(cfg, split_name, result.image_scores, result.labels, result.paths)
+        save_scores(cfg, split_name,
+                    result.image_scores, result.y_true,
+                    result.labels, result.paths)
 
     logger.info(f"ผลลัพธ์ทั้งหมดถูกเซฟไว้ที่ {cfg.OUTPUT_PATH}")
     return val_result, test_result
