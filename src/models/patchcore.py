@@ -305,11 +305,11 @@ class PatchCore:
                                 "build memory bank จากภาพ normal ก่อนเสมอ")
 
         image_scores, y_true, labels, paths = [], [], [], []
-        pixel_maps = []
+        pixel_maps, orig_imgs, preproc_imgs = [], [], []
         H, W = self.embed_spatial_shape
 
         for batch in loader:
-            images, _orig, _preproc, batch_paths, batch_labels, _size = batch
+            images, orig, preproc, batch_paths, batch_labels, _size = batch
             images = images.to(self.device)
             B = images.shape[0]
 
@@ -337,18 +337,20 @@ class PatchCore:
                                          self.cfg.HEATMAP_SIGMA)
                 pixel_maps.append(pmap)
 
-            # แยก y_true (int 0/1) กับ labels (string "good"/"defect") ออกจากกัน
-            # เพื่อให้ตรง schema ของ ScoreResult และ scores_{split}.npz ใน repo
-            # หลัก — y_true ใช้คำนวณ metric, labels ใช้แสดงผล/gallery ต่างหาก
-            # ห้ามสลับหรือรวมเป็น field เดียว เพราะจะทำให้ script ที่โหลด .npz
-            # ทั้งสอง repo มาเทียบกันอ่าน key ผิดแบบเงียบๆ โดยไม่มี error
-            #
-            # Separate y_true (int 0/1) from labels (string "good"/"defect")
-            # to match the ScoreResult and scores_{split}.npz schema in the
-            # main repo — y_true is for metric computation, labels is for
-            # display/gallery. Never merge them into a single field: any script
-            # that loads .npz files from both repos and compares them would
-            # silently read the wrong key with no error.
+                # orig/preproc: tensor [C, H, W] float 0–1 (display tensor จาก
+                # AnomalyDataset ที่ไม่ผ่าน ImageNet normalize แล้ว) แปลงเป็น
+                # numpy [H, W, C] float32 เพื่อให้ตรง convention เดียวกับ repo
+                # หลักที่เซฟไว้ใน scores_{split}.npz key 'orig_imgs'/'preproc_imgs'
+                # (visualize.py โหลด key นี้ขึ้นมา overlay กับ heatmap โดยตรง)
+                #
+                # orig/preproc: [C, H, W] float 0-1 tensor (display tensor from
+                # AnomalyDataset, not ImageNet-normalized) converted to numpy
+                # [H, W, C] float32 to match the convention in the main repo's
+                # scores_{split}.npz 'orig_imgs'/'preproc_imgs' keys (visualize.py
+                # loads these keys directly to overlay with the heatmap).
+                orig_imgs.append(orig[i].permute(1, 2, 0).cpu().numpy().astype('float32'))
+                preproc_imgs.append(preproc[i].permute(1, 2, 0).cpu().numpy().astype('float32'))
+
             y_true.extend([0 if lb == "normal" else 1 for lb in batch_labels])
             labels.extend(list(batch_labels))
             paths.extend(batch_paths)
@@ -359,6 +361,8 @@ class PatchCore:
             labels=labels,
             paths=paths,
             pixel_maps=np.stack(pixel_maps, axis=0),
+            orig_imgs=np.stack(orig_imgs, axis=0),
+            preproc_imgs=np.stack(preproc_imgs, axis=0),
         )
 
 

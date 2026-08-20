@@ -60,7 +60,10 @@ def run(cfg: Config):
         save_final_results(cfg, split_name, metrics, threshold)
         save_scores(cfg, split_name,
                     result.image_scores, result.y_true,
-                    result.labels, result.paths)
+                    result.labels, result.paths,
+                    result.pixel_maps,
+                    result.orig_imgs,
+                    result.preproc_imgs)
 
     logger.info(f"ผลลัพธ์ทั้งหมดถูกเซฟไว้ที่ {cfg.OUTPUT_PATH}")
     return val_result, test_result
