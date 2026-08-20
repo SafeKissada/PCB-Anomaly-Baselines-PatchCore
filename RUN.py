@@ -1,37 +1,39 @@
 """
-One-shot entry point สำหรับ PatchCore — แก้ OVERRIDES ด้านล่างแล้วรัน:
+One-shot entry point สำหรับ PatchCore — แก้ OVERRIDES แล้วรัน:
     python RUN.py
 
-เหมือน RUN.py ของ repo หลัก (Anomaly-Detection-THESIS) ทุกประการ:
-  - OVERRIDES เป็นเพียงที่เดียวที่ต้องแก้ ไม่ต้องแตะไฟล์อื่น
-  - script อื่นที่ต้องการ config เดิม (RUN_multi_seed.py) import
-    OVERRIDES จากไฟล์นี้โดยตรง ไม่ copy ซ้ำ กัน 2 ไฟล์ไม่ sync กัน
+รันครบ 3 step ในคำสั่งเดียว เหมือน RUN.py ของ repo หลัก:
+  [1/3] run_patchcore  — fit memory bank + score + save .npz/.json/.csv
+  [2/3] visualize      — สร้างภาพทุกใบจาก .npz ที่เพิ่งเซฟ
+  [3/3] cost_aware     — threshold sweep (ปิดได้ผ่าน toggle ด้านล่าง)
 
-เรื่อง split assignment (train/val/test membership):
-  - ถูกจัดการโดย build_datasets_and_loaders() ผ่าน cfg.SPLIT_CACHE_PATH
-    ภายใน run() เพียงจุดเดียว — ไม่มี "save_split" แยกต่างหาก
-  - รอบแรกที่รัน: คำนวณ split ใหม่แล้วเซฟ cache ลง SPLIT_CACHE_PATH
-  - รอบถัดไป (รวม multi-seed): โหลด cache โดยตรง ไม่คำนวณซ้ำ
-  - multi-seed ที่ต้องการ split เดิมทุก seed: ชี้ SPLIT_CACHE_PATH
-    เดียวกันทุก seed (แชร์ไฟล์ cache)
-  - multi-seed ที่ต้องการ split ต่างกันต่อ seed: ให้ RUN_multi_seed.py
-    แทน "SEED 42" ใน SPLIT_CACHE_PATH ด้วย seed จริง (แยก cache ต่อ seed)
+OVERRIDES เป็นเพียงที่เดียวที่ต้องแก้ — RUN_multi_seed.py import
+OVERRIDES จากไฟล์นี้โดยตรง ไม่ copy ซ้ำ กัน 2 ไฟล์ไม่ sync กัน
 
-About split assignment (train/val/test membership):
-  - Entirely handled by build_datasets_and_loaders() via
-    cfg.SPLIT_CACHE_PATH inside run() — there is no separate
-    "save_split" step.
-  - First run: computes a fresh split and saves it to SPLIT_CACHE_PATH.
-  - Subsequent runs (including multi-seed): loads the cache directly,
-    no recomputation.
-  - Multi-seed wanting the SAME split every seed: point all seeds at
-    the same SPLIT_CACHE_PATH (shared cache file).
-  - Multi-seed wanting a DIFFERENT split per seed: let RUN_multi_seed.py
-    replace "SEED 42" in SPLIT_CACHE_PATH with the real seed (separate
-    cache per seed).
+Runs all 3 steps in one command, same as the main repo's RUN.py:
+  [1/3] run_patchcore  — fit memory bank + score + save .npz/.json/.csv
+  [2/3] visualize      — generate all images from the just-saved .npz
+  [3/3] cost_aware     — threshold sweep (toggle off below if not needed)
+
+OVERRIDES is the only file to edit — RUN_multi_seed.py imports OVERRIDES
+directly from here, no copy, no drift risk.
 """
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 from config.config import Config
-from scripts.run_patchcore import run
+import scripts.run_patchcore         as run_patchcore
+import scripts.visualize_patchcore   as visualize_patchcore
+import scripts.run_cost_aware_patchcore as run_cost_aware_patchcore
+
+# ── เปิด/ปิด step [3/3] ─────────────────────────────────────────────
+# ปิดได้ถ้าแค่ต้องการ fit + score + visualize โดยไม่รัน cost-aware sweep
+# ไม่กระทบ step [1/2] เลยไม่ว่าจะตั้งเป็นอะไร
+#
+# Turn off if you only want fit + score + visualize without the sweep.
+# Never affects steps [1/2] regardless of this value.
+RUN_COST_AWARE_ANALYSIS = True
 
 OVERRIDES = dict(
     # ── Data & paths — แก้ก่อนรันจริง ──────────────────────────────
@@ -39,18 +41,15 @@ OVERRIDES = dict(
     GOOD_DIRNAME="good",
     DEFECT_DIRNAME="defect",
 
-    # แนะนำ: ชี้ไปที่ split_assignment.csv เดียวกับ repo หลัก
-    # (Anomaly-Detection-THESIS) เพื่อให้ train/val/test membership
-    # ตรงกันเป๊ะตอนเทียบ AE กับ PatchCore — ถ้าต้องการ split แยกต่อ
-    # seed ให้ใส่ "SEED 42" ฝังไว้ใน path แล้ว RUN_multi_seed.py
-    # จะแทนที่ให้อัตโนมัติเหมือน repo หลัก
+    # ชี้ไปที่ split_assignment.csv เดียวกับ repo หลัก เพื่อให้
+    # train/val/test membership ตรงกันเป๊ะตอนเทียบ AE กับ PatchCore
+    # ถ้าต้องการ split แยกต่อ seed ให้ฝัง "SEED 42" ไว้ใน path
+    # แล้ว RUN_multi_seed.py จะแทนที่ให้อัตโนมัติ
     #
-    # Recommended: point at the same split_assignment.csv as the main
-    # repo (Anomaly-Detection-THESIS) so train/val/test membership
-    # matches exactly when comparing AE vs PatchCore. To get a
-    # different split per seed, embed "SEED 42" in the path and
-    # RUN_multi_seed.py will substitute it automatically, same as
-    # the main repo.
+    # Point at the same split_assignment.csv as the main repo so
+    # train/val/test membership matches exactly when comparing AE vs
+    # PatchCore. Embed "SEED 42" in the path to get separate splits
+    # per seed — RUN_multi_seed.py substitutes it automatically.
     SPLIT_CACHE_PATH="/content/drive/MyDrive/Result/PatchCore/SEED 42/splits/split_assignment.csv",
     SAVE_PATH="/content/drive/MyDrive/Result/PatchCore/SEED 42/log",
     OUTPUT_PATH="/content/drive/MyDrive/Result/PatchCore/SEED 42/image",
@@ -64,5 +63,19 @@ OVERRIDES = dict(
 )
 
 if __name__ == "__main__":
+    _n_steps = 3 if RUN_COST_AWARE_ANALYSIS else 2
     cfg = Config(**OVERRIDES)
-    run(cfg)
+
+    print(f"\n--- [1/{_n_steps}] PatchCore: fit + score + save ---")
+    run_patchcore.run(cfg)
+
+    print(f"\n--- [2/{_n_steps}] Visualize: สร้างภาพทั้งหมด ---")
+    visualize_patchcore.visualize(cfg)
+
+    if RUN_COST_AWARE_ANALYSIS:
+        # อ่านจาก .npz ที่ step 1 เพิ่งเซฟ — ไม่รัน inference ใหม่
+        # Reads .npz saved by step 1 — no new inference
+        print(f"\n--- [3/{_n_steps}] Cost-Aware Threshold Sweep ---")
+        run_cost_aware_patchcore.main()
+
+    print("\n✅ เสร็จสิ้นกระบวนการทั้งหมดเรียบร้อย!")
