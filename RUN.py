@@ -23,7 +23,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from config.config import Config
-from src import output_docs
 import scripts.run_patchcore         as run_patchcore
 import scripts.visualize_patchcore   as visualize_patchcore
 import scripts.run_cost_aware_patchcore as run_cost_aware_patchcore
@@ -78,6 +77,5 @@ if __name__ == "__main__":
         # Reads .npz saved by step 1 — no new inference
         print(f"\n--- [3/{_n_steps}] Cost-Aware Threshold Sweep ---")
         run_cost_aware_patchcore.main()
-    output_docs.write_save_path_readme(Config())
 
     print("\n✅ เสร็จสิ้นกระบวนการทั้งหมดเรียบร้อย!")
